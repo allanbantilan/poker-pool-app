@@ -31,12 +31,14 @@ export interface ConnectedPeer {
 export interface NetworkGameState {
   players: NetworkPlayer[];
   currentPlayerIndex: number;
+  breakerIndex: number;
   round: 1 | 2;
   phase: "dealing" | "revealing" | "playing" | "round-end" | "game-over";
   balls: NetworkBall[];
   winner: string | null;
   draw: boolean;
   firstThreeMode: boolean;
+  firstThreeWinner: { playerId: string; name: string; handLabel: string } | null;
 }
 
 export type ClientGameAction =

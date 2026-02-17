@@ -56,6 +56,7 @@ export default function GameScreen() {
           players={state.players}
           currentPlayerIndex={state.currentPlayerIndex}
           firstThreeMode={state.firstThreeMode}
+          breakerIndex={state.breakerIndex}
         />
 
         <View className="mt-2 rounded-xl bg-black/30 p-3">
@@ -109,7 +110,16 @@ export default function GameScreen() {
         <View className="flex-1 items-center justify-center bg-black/60 px-6">
           <View className="w-full rounded-2xl border border-gold bg-[#102D1D] p-5">
             <Text className="text-center text-xl font-bold text-chalk">All First 3 Cards Revealed</Text>
-            <Text className="mt-2 text-center text-[#D8D6CB]">Continue to play Poker Billiard with all 6 cards visible.</Text>
+            {state.firstThreeWinner ? (
+              <Text className="mt-2 text-center text-gold">
+                Winner: {state.firstThreeWinner.name} ({state.firstThreeWinner.handLabel})
+              </Text>
+            ) : null}
+            <Text className="mt-2 text-center text-[#D8D6CB]">
+              {state.firstThreeWinner
+                ? `${state.firstThreeWinner.name} breaks first. Continue to play Poker Billiard with all 6 cards visible.`
+                : "Continue to play Poker Billiard with all 6 cards visible."}
+            </Text>
             <View className="mt-4">
               <GoldButton
                 title="Continue to Play"

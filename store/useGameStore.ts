@@ -57,6 +57,7 @@ export interface ConnectedPlayer {
 interface GameState {
   players: Player[];
   currentPlayerIndex: number;
+  breakerIndex: number;
   round: 1 | 2;
   phase: Phase;
   balls: Ball[];
@@ -64,6 +65,7 @@ interface GameState {
   draw: boolean;
   pendingPocket: PendingPocket | null;
   firstThreeMode: boolean;
+  firstThreeWinner: { playerId: string; name: string; handLabel: string } | null;
   undealtDeck: DeckCard[];
   networkMode: NetworkMode;
   myPlayerId: string;
@@ -118,15 +120,57 @@ const createPlayerCard = (card: DeckCard): PlayerCard => ({
 const allFirstThreeRevealed = (players: Player[]): boolean =>
   players.every((player) => player.cards.slice(0, 3).every((card) => card.revealed));
 
+const valueRank = (value: string): number => {
+  if (value === "A") return 14;
+  if (value === "K") return 13;
+  if (value === "Q") return 12;
+  if (value === "J") return 11;
+  return Number(value);
+};
+
+const sortedDesc = (values: number[]) => [...values].sort((a, b) => b - a);
+
+const evaluateThreeCardHand = (cards: PlayerCard[]): { score: number[]; handLabel: string } => {
+  const values = sortedDesc(cards.map((c) => valueRank(c.value)));
+  const counts = values.reduce<Record<number, number>>((acc, v) => {
+    acc[v] = (acc[v] ?? 0) + 1;
+    return acc;
+  }, {});
+  const countEntries = Object.entries(counts)
+    .map(([value, count]) => ({ value: Number(value), count }))
+    .sort((a, b) => b.count - a.count || b.value - a.value);
+
+  // First 3 mini-game ranking only: Trips > Pair > High Card.
+  if (countEntries[0].count === 3) return { score: [3, countEntries[0].value], handLabel: "Three of a Kind" };
+  if (countEntries[0].count === 2) {
+    const pair = countEntries[0].value;
+    const kicker = countEntries[1].value;
+    return { score: [2, pair, kicker], handLabel: "Pair" };
+  }
+  return { score: [1, ...values], handLabel: "High Card" };
+};
+
+const compareScore = (a: number[], b: number[]): number => {
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const left = a[i] ?? 0;
+    const right = b[i] ?? 0;
+    if (left !== right) return left - right;
+  }
+  return 0;
+};
+
 const toNetworkState = (state: GameState): NetworkGameState => ({
   players: state.players,
   currentPlayerIndex: state.currentPlayerIndex,
+  breakerIndex: state.breakerIndex,
   round: state.round,
   phase: state.phase,
   balls: state.balls,
   winner: state.winner,
   draw: state.draw,
   firstThreeMode: state.firstThreeMode,
+  firstThreeWinner: state.firstThreeWinner,
 });
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -135,6 +179,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     { id: "p2", name: "Player 2", avatar: "cue", cards: [] },
   ],
   currentPlayerIndex: 0,
+  breakerIndex: 0,
   round: 1,
   phase: "dealing",
   balls: initialBalls,
@@ -142,6 +187,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   draw: false,
   pendingPocket: null,
   firstThreeMode: true,
+  firstThreeWinner: null,
   undealtDeck: [],
   networkMode: "local",
   myPlayerId: "p1",
@@ -162,6 +208,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       players: nextPlayers,
       connectedPlayers: nextPlayers.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar })),
       currentPlayerIndex: 0,
+      breakerIndex: 0,
       phase: "dealing",
       round: 1,
       winner: null,
@@ -169,6 +216,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       balls: initialBalls,
       pendingPocket: null,
       firstThreeMode: true,
+      firstThreeWinner: null,
       undealtDeck: [],
       myPlayerId: nextPlayers[0]?.id ?? "p1",
     });
@@ -196,6 +244,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       phase: "revealing",
       pendingPocket: null,
       firstThreeMode: true,
+      firstThreeWinner: null,
       undealtDeck: deck.slice(index),
       round: 1,
     });
@@ -222,7 +271,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     const shouldStartPlaying = state.firstThreeMode && allFirstThreeRevealed(nextPlayers);
-    set({ players: nextPlayers, phase: shouldStartPlaying ? "playing" : state.phase });
+    let firstThreeWinner = state.firstThreeWinner;
+    let breakerIndex = state.breakerIndex;
+    let currentPlayerIndex = state.currentPlayerIndex;
+
+    if (shouldStartPlaying) {
+      const ranked = nextPlayers.map((player, index) => {
+        const hand = evaluateThreeCardHand(player.cards.slice(0, 3));
+        return { index, player, ...hand };
+      });
+      ranked.sort((a, b) => compareScore(b.score, a.score));
+      const top = ranked[0];
+      if (top) {
+        firstThreeWinner = { playerId: top.player.id, name: top.player.name, handLabel: top.handLabel };
+        breakerIndex = top.index;
+        currentPlayerIndex = top.index;
+      }
+    }
+
+    set({
+      players: nextPlayers,
+      phase: shouldStartPlaying ? "playing" : state.phase,
+      firstThreeWinner,
+      breakerIndex,
+      currentPlayerIndex,
+    });
     const updated = get();
     if (updated.networkMode === "host") {
       broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
@@ -253,6 +326,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         round: 2,
         players: nextPlayers,
         undealtDeck: state.undealtDeck.slice(deckIndex),
+        currentPlayerIndex: state.breakerIndex,
         phase: "playing",
       };
     });
@@ -341,7 +415,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       ball.number === pending.ballNumber ? { ...ball, pocketedBy: pending.playerId } : ball,
     );
 
-    const winnerPlayer = nextPlayers.find((player) => player.cards.length === 6 && player.cards.every((card) => card.pocketed));
+    const winnerIndex = nextPlayers.findIndex((player) => player.cards.length === 6 && player.cards.every((card) => card.pocketed));
+    const winnerPlayer = winnerIndex >= 0 ? nextPlayers[winnerIndex] : undefined;
     const allBallsGone = nextBalls.every((ball) => ball.pocketedBy !== null);
 
     if (winnerPlayer) {
@@ -350,6 +425,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         balls: nextBalls,
         pendingPocket: null,
         winner: winnerPlayer.name,
+        breakerIndex: winnerIndex,
         phase: "game-over",
       });
       const updated = get();
@@ -426,7 +502,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.networkMode === "guest") return;
     set((current) => ({
       players: current.players.map((p) => ({ ...p, cards: [] })),
-      currentPlayerIndex: 0,
+      currentPlayerIndex: current.breakerIndex,
       round: 1,
       phase: "dealing",
       balls: initialBalls,
@@ -434,6 +510,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       draw: false,
       pendingPocket: null,
       firstThreeMode: true,
+      firstThreeWinner: null,
       undealtDeck: [],
     }));
     const updated = get();
@@ -534,12 +611,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...current,
       players: state.players,
       currentPlayerIndex: state.currentPlayerIndex,
+      breakerIndex: state.breakerIndex,
       round: state.round,
       phase: state.phase,
       balls: state.balls,
       winner: state.winner,
       draw: state.draw,
       firstThreeMode: state.firstThreeMode,
+      firstThreeWinner: state.firstThreeWinner,
       connectedPlayers,
       pendingPocket: null,
     })),
