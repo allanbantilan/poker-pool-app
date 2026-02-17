@@ -5,10 +5,11 @@ import type { PlayerCard } from "@/store/useGameStore";
 interface CardHandProps {
   cards: PlayerCard[];
   onCardTap?: (cardId: string) => void;
+  onCardLongPress?: (cardId: string) => void;
   forceHide?: boolean;
 }
 
-export function CardHand({ cards, onCardTap, forceHide }: CardHandProps) {
+export function CardHand({ cards, onCardTap, onCardLongPress, forceHide }: CardHandProps) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <View className="flex-row py-1">
@@ -21,6 +22,7 @@ export function CardHand({ cards, onCardTap, forceHide }: CardHandProps) {
             pocketed={card.pocketed}
             hidden={forceHide ? !card.pocketed : card.hidden}
             onTap={onCardTap ? () => onCardTap(card.id) : undefined}
+            onLongPress={onCardLongPress ? () => onCardLongPress(card.id) : undefined}
           />
         ))}
       </View>

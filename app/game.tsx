@@ -16,6 +16,7 @@ export default function GameScreen() {
   const [showPocketedOnly, setShowPocketedOnly] = useState(false);
   const [showBallPicker, setShowBallPicker] = useState(false);
   const [showContinuePrompt, setShowContinuePrompt] = useState(false);
+  const [longPressCardId, setLongPressCardId] = useState<string | null>(null);
 
   const activePlayer = state.players[state.currentPlayerIndex];
   const nextPlayer = state.players.length > 0 ? state.players[(state.currentPlayerIndex + 1) % state.players.length] : null;
@@ -77,6 +78,11 @@ export default function GameScreen() {
             if (!card) return;
             if (!card.revealed) state.revealCard(activePlayer.id, cardId);
           }}
+          onCardLongPress={(cardId) => {
+            const card = activePlayer.cards.find((c) => c.id === cardId);
+            if (!card || !card.revealed || card.pocketed) return;
+            setLongPressCardId(cardId);
+          }}
           onTogglePocketedFilter={() => setShowPocketedOnly((prev) => !prev)}
         />
 
@@ -128,6 +134,30 @@ export default function GameScreen() {
                   setShowContinuePrompt(false);
                 }}
               />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={!!longPressCardId} animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/60 px-6">
+          <View className="w-full rounded-2xl border border-gold bg-[#102D1D] p-5">
+            <Text className="text-center text-xl font-bold text-chalk">Card Options</Text>
+            <Text className="mt-2 text-center text-[#D8D6CB]">Mark this shown card as pocketed?</Text>
+            <View className="mt-4">
+              <GoldButton
+                title="Card Pocketed"
+                onPress={() => {
+                  const card = activePlayer.cards.find((c) => c.id === longPressCardId);
+                  if (card) {
+                    state.pocketBall(activePlayer.id, card.ballNumber);
+                  }
+                  setLongPressCardId(null);
+                }}
+              />
+            </View>
+            <View className="mt-2">
+              <GoldButton title="Cancel" onPress={() => setLongPressCardId(null)} />
             </View>
           </View>
         </View>

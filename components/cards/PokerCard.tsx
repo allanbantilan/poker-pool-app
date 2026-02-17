@@ -9,14 +9,16 @@ interface PokerCardProps {
   pocketed?: boolean;
   hidden?: boolean;
   onTap?: () => void;
+  onLongPress?: () => void;
 }
 
-export function PokerCard({ suit, value, faceDown, pocketed, hidden, onTap }: PokerCardProps) {
+export function PokerCard({ suit, value, faceDown, pocketed, hidden, onTap, onLongPress }: PokerCardProps) {
   const showBack = faceDown || hidden;
 
   return (
     <Pressable
       onPress={onTap}
+      onLongPress={onLongPress}
       style={{
         width: 90,
         height: 130,
@@ -68,4 +70,3 @@ export function PokerCard({ suit, value, faceDown, pocketed, hidden, onTap }: Po
     </Pressable>
   );
 }
-
