@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Modal, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { PlayerStrip } from "@/components/player/PlayerStrip";
 import { PlayerZone } from "@/components/player/PlayerZone";
@@ -12,28 +12,55 @@ import { useGameStore } from "@/store/useGameStore";
 export default function GameScreen() {
   const router = useRouter();
   const state = useGameStore();
-  const [hideMyCards, setHideMyCards] = useState(false);
   const [showPocketedOnly, setShowPocketedOnly] = useState(false);
   const [showBallPicker, setShowBallPicker] = useState(false);
+  const [showContinuePrompt, setShowContinuePrompt] = useState(false);
 
   const activePlayer = state.players[state.currentPlayerIndex];
-  const opponents = useMemo(() => state.players.filter((p) => p.id !== activePlayer?.id), [activePlayer?.id, state.players]);
+  const nextPlayer = state.players.length > 0 ? state.players[(state.currentPlayerIndex + 1) % state.players.length] : null;
+  const opponents = useMemo(
+    () => state.players.filter((p) => p.id !== activePlayer?.id),
+    [activePlayer?.id, state.players],
+  );
 
   useEffect(() => {
     if (state.phase === "game-over") router.replace("/winner");
     if (state.phase === "round-end") router.replace("/round-end");
   }, [router, state.phase]);
 
+  useEffect(() => {
+    if (state.firstThreeMode && state.phase === "playing") {
+      setShowContinuePrompt(true);
+    }
+  }, [state.firstThreeMode, state.phase]);
+
   if (!activePlayer) return null;
 
   return (
     <View className="flex-1 bg-felt">
       <ScrollView contentContainerClassName="p-3.5 pb-10">
+        {state.firstThreeMode ? (
+          <View className="mb-3 rounded-xl border border-gold bg-black/30 p-3">
+            <Text className="text-center font-bold text-gold">First 3 Cards Game: Reveal your first 3 cards to begin.</Text>
+          </View>
+        ) : null}
+
         {opponents.map((player) => (
           <PlayerStrip key={player.id} player={player} />
         ))}
 
-        <RoundBanner round={state.round} phase={state.phase} players={state.players} currentPlayerIndex={state.currentPlayerIndex} />
+        <RoundBanner
+          round={state.round}
+          phase={state.phase}
+          players={state.players}
+          currentPlayerIndex={state.currentPlayerIndex}
+          firstThreeMode={state.firstThreeMode}
+        />
+
+        <View className="mt-2 rounded-xl bg-black/30 p-3">
+          <Text className="font-semibold text-chalk">Current Turn: {activePlayer.name}</Text>
+          <Text className="mt-1 text-[#D8D6CB]">Next Turn: {nextPlayer?.name ?? "-"}</Text>
+        </View>
 
         <View className="my-3">
           <Text className="mb-2 text-chalk">Table Balls</Text>
@@ -43,14 +70,11 @@ export default function GameScreen() {
         <PlayerZone
           player={activePlayer}
           showPocketedOnly={showPocketedOnly}
-          hideCards={hideMyCards}
           onCardTap={(cardId) => {
             const card = activePlayer.cards.find((c) => c.id === cardId);
             if (!card) return;
             if (!card.revealed) state.revealCard(activePlayer.id, cardId);
-            else state.toggleCardHidden(activePlayer.id, cardId);
           }}
-          onToggleHide={() => setHideMyCards((prev) => !prev)}
           onTogglePocketedFilter={() => setShowPocketedOnly((prev) => !prev)}
         />
 
@@ -70,12 +94,6 @@ export default function GameScreen() {
             />
           </View>
         ) : null}
-
-        {state.round === 1 && state.players.every((p) => p.cards.some((card) => card.pocketed)) ? (
-          <Pressable onPress={() => state.nextRound()} className="mt-3 self-center rounded-xl bg-[#204435] px-3.5 py-2.5">
-            <Text className="text-chalk">Deal Next 3 Cards</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
 
       <ActionSheet
@@ -85,6 +103,24 @@ export default function GameScreen() {
         onCancel={state.cancelPocket}
         onFoul={state.reportFoul}
       />
+
+      <Modal transparent visible={showContinuePrompt} animationType="fade">
+        <View className="flex-1 items-center justify-center bg-black/60 px-6">
+          <View className="w-full rounded-2xl border border-gold bg-[#102D1D] p-5">
+            <Text className="text-center text-xl font-bold text-chalk">All First 3 Cards Revealed</Text>
+            <Text className="mt-2 text-center text-[#D8D6CB]">Continue to play Poker Billiard with all 6 cards visible.</Text>
+            <View className="mt-4">
+              <GoldButton
+                title="Continue to Play"
+                onPress={() => {
+                  state.unlockRemainingCards();
+                  setShowContinuePrompt(false);
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -1,7 +1,7 @@
+import { GoldButton } from "@/components/ui/GoldButton";
+import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { useRouter } from "expo-router";
-import { GoldButton } from "@/components/ui/GoldButton";
 
 export default function Index() {
   const router = useRouter();
@@ -10,8 +10,16 @@ export default function Index() {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmer, { toValue: 0.72, duration: 1100, useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0.45, duration: 1100, useNativeDriver: true }),
+        Animated.timing(shimmer, {
+          toValue: 0.72,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0.45,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
       ]),
     ).start();
   }, [shimmer]);
@@ -30,16 +38,22 @@ export default function Index() {
         }}
       />
       <View className="mb-12 items-center">
-        <Text className="text-[42px] font-extrabold tracking-[2px] text-chalk">POKER POOL</Text>
-        <Text className="mt-1.5 text-[18px] text-gold">?--------?</Text>
+        <Text className="text-[42px] font-extrabold tracking-[2px] text-chalk">
+          BARAHAAY
+        </Text>
       </View>
       <GoldButton title="Host Game" onPress={() => router.push("/host")} />
       <View className="h-3.5" />
       <GoldButton title="Join Game" onPress={() => router.push("/join")} />
-      <Pressable onPress={() => router.push("/setup")} className="mt-[18px] items-center">
+      <Pressable
+        onPress={() => router.push("/setup")}
+        className="mt-[18px] items-center"
+      >
         <Text className="text-[#E5CCA2]">Quick Local Setup</Text>
       </Pressable>
-      <Text className="absolute bottom-5 self-center text-[rgba(241,239,231,0.6)]">v1.0.0</Text>
+      <Text className="absolute bottom-5 self-center text-[rgba(241,239,231,0.6)]">
+        v1.0.0
+      </Text>
     </View>
   );
 }
