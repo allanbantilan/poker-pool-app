@@ -2,6 +2,7 @@ import { GoldButton } from "@/components/ui/GoldButton";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Index() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function Index() {
   }, [shimmer]);
 
   return (
-    <View className="flex-1 justify-center bg-felt px-5">
+    <SafeAreaView className="flex-1 justify-center bg-felt px-5" edges={["top", "bottom"]}>
       <Animated.View
         style={{
           position: "absolute",
@@ -54,6 +55,6 @@ export default function Index() {
       <Text className="absolute bottom-5 self-center text-[rgba(241,239,231,0.6)]">
         v1.0.0
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { GoldButton } from "@/components/ui/GoldButton";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -39,34 +40,36 @@ export default function SetupScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-felt px-5" contentContainerClassName="py-8">
-      <Text className="mb-5 text-3xl font-bold text-chalk">Player Setup (2-8)</Text>
+    <SafeAreaView className="flex-1 bg-felt" edges={["top", "bottom"]}>
+      <ScrollView className="flex-1 bg-felt px-5" contentContainerClassName="py-8">
+        <Text className="mb-5 text-3xl font-bold text-chalk">Player Setup (2-8)</Text>
 
-      <View className="mb-4 flex-row flex-wrap">
-        {Array.from({ length: 7 }, (_, i) => i + 2).map((n) => (
-          <Pressable
-            key={n}
-            onPress={() => onCountChange(n)}
-            className={`mb-2 mr-2 rounded-xl px-4 py-2.5 ${playerCount === n ? "bg-gold" : "bg-[#2B4A39]"}`}
-          >
-            <Text className={playerCount === n ? "text-[#1B160B]" : "text-chalk"}>{n}</Text>
-          </Pressable>
+        <View className="mb-4 flex-row flex-wrap">
+          {Array.from({ length: 7 }, (_, i) => i + 2).map((n) => (
+            <Pressable
+              key={n}
+              onPress={() => onCountChange(n)}
+              className={`mb-2 mr-2 rounded-xl px-4 py-2.5 ${playerCount === n ? "bg-gold" : "bg-[#2B4A39]"}`}
+            >
+              <Text className={playerCount === n ? "text-[#1B160B]" : "text-chalk"}>{n}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {Array.from({ length: playerCount }, (_, i) => i).map((index) => (
+          <TextInput
+            key={index}
+            value={names[index] ?? ""}
+            onChangeText={(text) => updateName(index, text)}
+            style={inputStyle}
+            placeholder={`Player ${index + 1} name`}
+            placeholderTextColor="#9EB6A8"
+          />
         ))}
-      </View>
 
-      {Array.from({ length: playerCount }, (_, i) => i).map((index) => (
-        <TextInput
-          key={index}
-          value={names[index] ?? ""}
-          onChangeText={(text) => updateName(index, text)}
-          style={inputStyle}
-          placeholder={`Player ${index + 1} name`}
-          placeholderTextColor="#9EB6A8"
-        />
-      ))}
-
-      <GoldButton title="Start Game" onPress={onStart} />
-    </ScrollView>
+        <GoldButton title="Start Game" onPress={onStart} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

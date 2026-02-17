@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import * as Network from "expo-network";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { GoldButton } from "@/components/ui/GoldButton";
 import { useNetworkStore } from "@/services/networking/networkStore";
 import { isPrivateLanIp } from "@/services/networking/protocol";
@@ -44,7 +45,7 @@ export default function HostScreen() {
   }, [detectLocalIp]);
 
   return (
-    <View className="flex-1 justify-center bg-felt px-5">
+    <SafeAreaView className="flex-1 justify-center bg-felt px-5" edges={["top", "bottom"]}>
       <Text className="mb-1 text-3xl font-bold text-chalk">Hosting Game</Text>
       <Text className="mb-4 text-[#D8D6CB]">Offline Mode: turn on your phone hotspot. Friends join this hotspot, then enter your IP.</Text>
 
@@ -92,7 +93,7 @@ export default function HostScreen() {
           }
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

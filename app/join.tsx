@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { scanForHosts } from "@/services/networking/guest";
 import { useNetworkStore } from "@/services/networking/networkStore";
 import { GoldButton } from "@/components/ui/GoldButton";
@@ -35,7 +36,7 @@ export default function JoinScreen() {
   };
 
   return (
-    <View className="flex-1 bg-felt px-5 pt-10">
+    <SafeAreaView className="flex-1 bg-felt px-5 pt-10" edges={["top", "bottom"]}>
       <Text className="mb-1 text-3xl font-bold text-chalk">Join Game</Text>
       <Text className="mb-4 text-[#D8D6CB]">Offline Mode: connect to host hotspot first, then enter host IP and room code.</Text>
 
@@ -71,7 +72,7 @@ export default function JoinScreen() {
 
       {error ? <Text className="mb-2 text-[#FCA5A5]">{error}</Text> : null}
       <GoldButton title="Connect Over Hotspot" onPress={onJoin} />
-    </View>
+    </SafeAreaView>
   );
 }
 

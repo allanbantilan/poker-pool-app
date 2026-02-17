@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNetworkStore } from "@/services/networking/networkStore";
 import { GoldButton } from "@/components/ui/GoldButton";
 import { useGameStore } from "@/store/useGameStore";
@@ -30,45 +31,47 @@ export default function LobbyScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-felt px-5" contentContainerClassName="py-8">
-      <Text className="mb-4 text-3xl font-bold text-chalk">Waiting for players...</Text>
-      <Text className="mb-2 text-[#D8D6CB]">Offline Local Hotspot Mode</Text>
-      <Text className="mb-2 text-chalk">Room Code: {roomCode || "Not available"}</Text>
-      <Text className="mb-4 text-chalk">Your IP: {hostIp || "Not available"}</Text>
-      <Text className="mb-2 text-chalk">Players ({playerNames.length}/{maxPlayers})</Text>
+    <SafeAreaView className="flex-1 bg-felt" edges={["top", "bottom"]}>
+      <ScrollView className="flex-1 bg-felt px-5" contentContainerClassName="py-8">
+        <Text className="mb-4 text-3xl font-bold text-chalk">Waiting for players...</Text>
+        <Text className="mb-2 text-[#D8D6CB]">Offline Local Hotspot Mode</Text>
+        <Text className="mb-2 text-chalk">Room Code: {roomCode || "Not available"}</Text>
+        <Text className="mb-4 text-chalk">Your IP: {hostIp || "Not available"}</Text>
+        <Text className="mb-2 text-chalk">Players ({playerNames.length}/{maxPlayers})</Text>
 
-      <View className="mb-4 rounded-xl bg-black/25 p-3">
-        {playerNames.map((name, index) => (
-          <View key={`${name}-${index}`} className="mb-2 flex-row items-center justify-between">
-            <Text className="text-chalk">{index + 1}. {name}</Text>
-            {index > 0 ? (
-              <Pressable onPress={() => removeLocalPlayer(index)}>
-                <Text className="font-bold text-gold">Remove</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ))}
-      </View>
+        <View className="mb-4 rounded-xl bg-black/25 p-3">
+          {playerNames.map((name, index) => (
+            <View key={`${name}-${index}`} className="mb-2 flex-row items-center justify-between">
+              <Text className="text-chalk">{index + 1}. {name}</Text>
+              {index > 0 ? (
+                <Pressable onPress={() => removeLocalPlayer(index)}>
+                  <Text className="font-bold text-gold">Remove</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
 
-      <TextInput
-        value={newName}
-        onChangeText={setNewName}
-        style={inputStyle}
-        placeholder="Add joining player name"
-        placeholderTextColor="#9EB6A8"
-      />
-      <Pressable
-        onPress={() => {
-          addLocalPlayer(newName);
-          setNewName("");
-        }}
-        className="mb-4 rounded-xl bg-[#2B4A39] px-3 py-2"
-      >
-        <Text className="text-center font-semibold text-chalk">Add Player</Text>
-      </Pressable>
+        <TextInput
+          value={newName}
+          onChangeText={setNewName}
+          style={inputStyle}
+          placeholder="Add joining player name"
+          placeholderTextColor="#9EB6A8"
+        />
+        <Pressable
+          onPress={() => {
+            addLocalPlayer(newName);
+            setNewName("");
+          }}
+          className="mb-4 rounded-xl bg-[#2B4A39] px-3 py-2"
+        >
+          <Text className="text-center font-semibold text-chalk">Add Player</Text>
+        </Pressable>
 
-      <GoldButton title={playerNames.length >= 2 ? "Start Game" : "Need 2+ Players"} onPress={startGame} disabled={playerNames.length < 2} />
-    </ScrollView>
+        <GoldButton title={playerNames.length >= 2 ? "Start Game" : "Need 2+ Players"} onPress={startGame} disabled={playerNames.length < 2} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
