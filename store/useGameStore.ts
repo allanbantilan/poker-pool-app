@@ -1,5 +1,18 @@
 import { create } from "zustand";
 import { FULL_DECK, type DeckCard, type Suit } from "@/constants/game";
+import {
+  broadcastHostHeartbeat,
+  broadcastStateUpdate,
+  type HostSessionInfo,
+  startHostSession,
+  stopHostSession,
+} from "@/services/networking/host";
+import {
+  connectToHost,
+  disconnectGuest,
+  sendGuestAction,
+} from "@/services/networking/guest";
+import { PORTS, type ClientGameAction, type NetworkGameState } from "@/services/networking/protocol";
 
 export interface PlayerCard {
   id: string;
@@ -68,10 +81,16 @@ interface GameState {
   nextTurn: () => void;
   nextRound: () => void;
   resetGame: () => void;
-  hostGame: (playerName: string, avatar: string) => Promise<void>;
-  joinGame: (ip: string, port: number, playerName: string) => Promise<void>;
-  sendAction: (_action: unknown) => void;
-  syncFromHost: (state: Partial<GameState>) => void;
+  hostGame: (
+    playerName: string,
+    avatar: string,
+    hotspotIp: string,
+    roomCode?: string,
+    maxPlayers?: number,
+  ) => Promise<HostSessionInfo>;
+  joinGame: (ip: string, roomCode: string, playerName: string, avatar: string) => Promise<void>;
+  sendAction: (action: ClientGameAction) => void;
+  syncFromHost: (state: NetworkGameState, connectedPlayers: ConnectedPlayer[]) => void;
   disconnect: () => void;
 }
 
@@ -98,6 +117,17 @@ const createPlayerCard = (card: DeckCard): PlayerCard => ({
 
 const allFirstThreeRevealed = (players: Player[]): boolean =>
   players.every((player) => player.cards.slice(0, 3).every((card) => card.revealed));
+
+const toNetworkState = (state: GameState): NetworkGameState => ({
+  players: state.players,
+  currentPlayerIndex: state.currentPlayerIndex,
+  round: state.round,
+  phase: state.phase,
+  balls: state.balls,
+  winner: state.winner,
+  draw: state.draw,
+  firstThreeMode: state.firstThreeMode,
+});
 
 export const useGameStore = create<GameState>((set, get) => ({
   players: [
@@ -142,6 +172,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       undealtDeck: [],
       myPlayerId: nextPlayers[0]?.id ?? "p1",
     });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
   dealCards: () => {
@@ -164,10 +199,20 @@ export const useGameStore = create<GameState>((set, get) => ({
       undealtDeck: deck.slice(index),
       round: 1,
     });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
   revealCard: (playerId, cardId) => {
     const state = get();
+    if (state.networkMode === "guest") {
+      get().sendAction({ type: "REVEAL_CARD", playerId, cardId });
+      return;
+    }
+
     const nextPlayers = state.players.map((player) => {
       if (player.id !== playerId) return player;
       return {
@@ -178,9 +223,21 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const shouldStartPlaying = state.firstThreeMode && allFirstThreeRevealed(nextPlayers);
     set({ players: nextPlayers, phase: shouldStartPlaying ? "playing" : state.phase });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
   unlockRemainingCards: () => {
+    const stateBefore = get();
+    if (stateBefore.networkMode === "guest") {
+      const me = stateBefore.players[stateBefore.currentPlayerIndex];
+      if (me) get().sendAction({ type: "UNLOCK_REMAINING", playerId: me.id });
+      return;
+    }
+
     set((state) => {
       let deckIndex = 0;
       const nextPlayers = state.players.map((player) => {
@@ -199,6 +256,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         phase: "playing",
       };
     });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
   toggleCardHidden: (playerId, cardId) => {
@@ -217,6 +279,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   pocketBall: (playerId, ballNumber) => {
     const state = get();
+    if (state.networkMode === "guest") {
+      get().sendAction({ type: "POCKET_BALL", playerId, ballNumber });
+      return;
+    }
     const activePlayer = state.players[state.currentPlayerIndex];
     if (!activePlayer || activePlayer.id !== playerId) return;
 
@@ -246,10 +312,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     set({ pendingPocket: { playerId, ballNumber, matchedCardIds: matches, valid: true } });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
   confirmPocket: () => {
     const state = get();
+    if (state.networkMode === "guest") {
+      const me = state.players[state.currentPlayerIndex];
+      if (me) get().sendAction({ type: "CONFIRM_POCKET", playerId: me.id });
+      return;
+    }
     const pending = state.pendingPocket;
     if (!pending || !pending.valid) return;
 
@@ -276,6 +352,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         winner: winnerPlayer.name,
         phase: "game-over",
       });
+      const updated = get();
+      if (updated.networkMode === "host") {
+        broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+        broadcastHostHeartbeat();
+      }
       return;
     }
 
@@ -287,29 +368,64 @@ export const useGameStore = create<GameState>((set, get) => ({
       phase: allBallsGone ? "game-over" : state.phase,
       currentPlayerIndex: allBallsGone ? state.currentPlayerIndex : (state.currentPlayerIndex + 1) % state.players.length,
     });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
-  cancelPocket: () => set({ pendingPocket: null }),
+  cancelPocket: () => {
+    const state = get();
+    if (state.networkMode === "guest") return;
+    set({ pendingPocket: null });
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
+  },
 
   reportFoul: () => {
+    const current = get();
+    if (current.networkMode === "guest") {
+      const me = current.players[current.currentPlayerIndex];
+      if (me) get().sendAction({ type: "REPORT_FOUL", playerId: me.id });
+      return;
+    }
     set((state) => ({
       pendingPocket: null,
       currentPlayerIndex: (state.currentPlayerIndex + 1) % state.players.length,
     }));
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
   },
 
-  nextTurn: () =>
-    set((state) => ({
-      currentPlayerIndex: (state.currentPlayerIndex + 1) % state.players.length,
-    })),
+  nextTurn: () => {
+    const state = get();
+    if (state.networkMode === "guest") return;
+    set((current) => ({
+      currentPlayerIndex: (current.currentPlayerIndex + 1) % current.players.length,
+    }));
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
+  },
 
   nextRound: () => {
     get().unlockRemainingCards();
   },
 
-  resetGame: () =>
-    set((state) => ({
-      players: state.players.map((p) => ({ ...p, cards: [] })),
+  resetGame: () => {
+    const state = get();
+    if (state.networkMode === "guest") return;
+    set((current) => ({
+      players: current.players.map((p) => ({ ...p, cards: [] })),
       currentPlayerIndex: 0,
       round: 1,
       phase: "dealing",
@@ -319,29 +435,123 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingPocket: null,
       firstThreeMode: true,
       undealtDeck: [],
-    })),
+    }));
+    const updated = get();
+    if (updated.networkMode === "host") {
+      broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+      broadcastHostHeartbeat();
+    }
+  },
 
-  hostGame: async (playerName, avatar) => {
+  hostGame: async (playerName, avatar, hotspotIp, roomCode, maxPlayers) => {
+    const session = await startHostSession(playerName, hotspotIp, {
+      roomCode,
+      maxPlayers,
+      callbacks: {
+        onJoin: (peer) => {
+          set((state) => {
+            if (state.connectedPlayers.some((p) => p.id === peer.id)) return state;
+            const nextPeers = [...state.connectedPlayers, peer];
+            return { connectedPlayers: nextPeers };
+          });
+          const updated = get();
+          broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+        },
+        onAction: (action) => {
+          const store = get();
+          if (action.type === "REVEAL_CARD") store.revealCard(action.playerId, action.cardId);
+          if (action.type === "POCKET_BALL") store.pocketBall(action.playerId, action.ballNumber);
+          if (action.type === "CONFIRM_POCKET") store.confirmPocket();
+          if (action.type === "REPORT_FOUL") store.reportFoul();
+          if (action.type === "UNLOCK_REMAINING") store.unlockRemainingCards();
+        },
+        onDisconnect: (clientId) => {
+          set((state) => ({
+            connectedPlayers: state.connectedPlayers.filter((p) => p.id !== clientId),
+          }));
+          const updated = get();
+          broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+        },
+      },
+    });
+
     set({
       networkMode: "host",
       connectionStatus: "hosting",
       connectedPlayers: [{ id: "p1", name: playerName, avatar }],
       myPlayerId: "p1",
     });
+
+    const updated = get();
+    broadcastStateUpdate(toNetworkState(updated), updated.connectedPlayers);
+    return session;
   },
 
-  joinGame: async (_ip, _port, playerName) => {
+  joinGame: async (ip, roomCode, playerName, avatar) => {
+    set({ connectionStatus: "connecting" });
+    const result = await connectToHost({
+      ip,
+      roomCode,
+      playerName,
+      avatar,
+      callbacks: {
+        onConnected: () => {
+          set({ connectionStatus: "connected" });
+        },
+        onStateUpdate: (state, connectedPlayers) => {
+          get().syncFromHost(state, connectedPlayers);
+        },
+        onPlayerDisconnected: () => {},
+        onError: () => {
+          set({ connectionStatus: "disconnected" });
+        },
+        onHostDisconnected: () => {
+          set({ connectionStatus: "disconnected", phase: "round-end" });
+        },
+      },
+    });
+
+    if (!result.ok) {
+      set({ connectionStatus: "disconnected" });
+      throw new Error(result.message);
+    }
+
     set({
       networkMode: "guest",
-      connectionStatus: "connected",
-      myPlayerId: "guest-local",
-      connectedPlayers: [{ id: "guest-local", name: playerName, avatar: "chip" }],
+      myPlayerId: `guest-${playerName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "player"}`,
+      connectedPlayers: [{ id: "p1", name: "Host", avatar: "chip" }, { id: "guest", name: playerName, avatar }],
     });
   },
 
-  sendAction: (_action) => {},
+  sendAction: (action) => {
+    const state = get();
+    if (state.networkMode !== "guest") return;
+    sendGuestAction(action);
+  },
 
-  syncFromHost: (state) => set(state as Partial<GameState>),
+  syncFromHost: (state, connectedPlayers) =>
+    set((current) => ({
+      ...current,
+      players: state.players,
+      currentPlayerIndex: state.currentPlayerIndex,
+      round: state.round,
+      phase: state.phase,
+      balls: state.balls,
+      winner: state.winner,
+      draw: state.draw,
+      firstThreeMode: state.firstThreeMode,
+      connectedPlayers,
+      pendingPocket: null,
+    })),
 
-  disconnect: () => set({ connectionStatus: "disconnected", connectedPlayers: [], networkMode: "local" }),
+  disconnect: () => {
+    const state = get();
+    if (state.networkMode === "host") {
+      stopHostSession();
+    }
+    if (state.networkMode === "guest") {
+      disconnectGuest();
+    }
+    set({ connectionStatus: "disconnected", connectedPlayers: [], networkMode: "local" });
+  },
 }));

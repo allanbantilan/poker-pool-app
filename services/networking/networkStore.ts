@@ -3,6 +3,7 @@ import { create } from "zustand";
 interface DiscoveredGame {
   hostName: string;
   gameId: string;
+  roomCode: string;
   playerCount: number;
   maxPlayers: number;
   ip: string;
@@ -18,6 +19,7 @@ interface NetworkState {
   playerNames: string[];
   setDiscoveredGames: (games: DiscoveredGame[]) => void;
   setHosting: (roomCode: string, hostIp: string, hostName: string, maxPlayers: number) => void;
+  setJoinTarget: (roomCode: string, hostIp: string) => void;
   joinAsPlayer: (playerName: string) => void;
   addLocalPlayer: (playerName: string) => void;
   removeLocalPlayer: (index: number) => void;
@@ -41,6 +43,7 @@ export const useNetworkStore = create<NetworkState>((set) => ({
       maxPlayers: Math.min(8, Math.max(2, maxPlayers)),
       playerNames: [hostName.trim() || "Host"],
     }),
+  setJoinTarget: (roomCode, hostIp) => set({ roomCode: roomCode.trim().toUpperCase(), hostIp: hostIp.trim() }),
   joinAsPlayer: (playerName) =>
     set((state) => {
       if (!playerName.trim()) return state;

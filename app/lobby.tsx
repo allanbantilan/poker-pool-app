@@ -32,8 +32,9 @@ export default function LobbyScreen() {
   return (
     <ScrollView className="flex-1 bg-felt px-5" contentContainerClassName="py-8">
       <Text className="mb-4 text-3xl font-bold text-chalk">Waiting for players...</Text>
-      <Text className="mb-2 text-chalk">Room Code: {roomCode || "AB42"}</Text>
-      <Text className="mb-4 text-chalk">Your IP: {hostIp || "192.168.1.5"}</Text>
+      <Text className="mb-2 text-[#D8D6CB]">Offline Local Hotspot Mode</Text>
+      <Text className="mb-2 text-chalk">Room Code: {roomCode || "Not available"}</Text>
+      <Text className="mb-4 text-chalk">Your IP: {hostIp || "Not available"}</Text>
       <Text className="mb-2 text-chalk">Players ({playerNames.length}/{maxPlayers})</Text>
 
       <View className="mb-4 rounded-xl bg-black/25 p-3">
