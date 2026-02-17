@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PlayerStrip } from "@/components/player/PlayerStrip";
 import { PlayerZone } from "@/components/player/PlayerZone";
 import { RoundBanner } from "@/components/ui/RoundBanner";
@@ -37,7 +38,7 @@ export default function GameScreen() {
   if (!activePlayer) return null;
 
   return (
-    <View className="flex-1 bg-felt">
+    <SafeAreaView className="flex-1 bg-felt" edges={["top", "bottom"]}>
       <ScrollView contentContainerClassName="p-3.5 pb-10">
         {state.firstThreeMode ? (
           <View className="mb-3 rounded-xl border border-gold bg-black/30 p-3">
@@ -121,6 +122,6 @@ export default function GameScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }

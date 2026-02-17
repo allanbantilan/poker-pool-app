@@ -51,6 +51,7 @@ interface GameState {
   draw: boolean;
   pendingPocket: PendingPocket | null;
   firstThreeMode: boolean;
+  undealtDeck: DeckCard[];
   networkMode: NetworkMode;
   myPlayerId: string;
   connectedPlayers: ConnectedPlayer[];
@@ -111,6 +112,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   draw: false,
   pendingPocket: null,
   firstThreeMode: true,
+  undealtDeck: [],
   networkMode: "local",
   myPlayerId: "p1",
   connectedPlayers: [],
@@ -137,6 +139,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       balls: initialBalls,
       pendingPocket: null,
       firstThreeMode: true,
+      undealtDeck: [],
       myPlayerId: nextPlayers[0]?.id ?? "p1",
     });
   },
@@ -144,7 +147,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   dealCards: () => {
     const { players } = get();
     const deck = shuffle(FULL_DECK);
-    const cardsPerPlayer = 6;
+    const cardsPerPlayer = 3;
     let index = 0;
 
     const nextPlayers = players.map((player) => {
@@ -153,7 +156,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { ...player, cards: dealt };
     });
 
-    set({ players: nextPlayers, phase: "revealing", pendingPocket: null, firstThreeMode: true, round: 1 });
+    set({
+      players: nextPlayers,
+      phase: "revealing",
+      pendingPocket: null,
+      firstThreeMode: true,
+      undealtDeck: deck.slice(index),
+      round: 1,
+    });
   },
 
   revealCard: (playerId, cardId) => {
@@ -171,15 +181,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   unlockRemainingCards: () => {
-    set((state) => ({
-      firstThreeMode: false,
-      round: 2,
-      players: state.players.map((player) => ({
-        ...player,
-        cards: player.cards.map((card, index) => (index >= 3 ? { ...card, revealed: true } : card)),
-      })),
-      phase: "playing",
-    }));
+    set((state) => {
+      let deckIndex = 0;
+      const nextPlayers = state.players.map((player) => {
+        const nextThree = state.undealtDeck
+          .slice(deckIndex, deckIndex + 3)
+          .map((card) => ({ ...createPlayerCard(card), revealed: true }));
+        deckIndex += 3;
+        return { ...player, cards: [...player.cards, ...nextThree] };
+      });
+
+      return {
+        firstThreeMode: false,
+        round: 2,
+        players: nextPlayers,
+        undealtDeck: state.undealtDeck.slice(deckIndex),
+        phase: "playing",
+      };
+    });
   },
 
   toggleCardHidden: (playerId, cardId) => {
@@ -299,6 +318,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       draw: false,
       pendingPocket: null,
       firstThreeMode: true,
+      undealtDeck: [],
     })),
 
   hostGame: async (playerName, avatar) => {
